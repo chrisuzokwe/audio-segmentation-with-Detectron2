@@ -77,13 +77,12 @@ def get_bbox(anno_path):
 
         # check through all annotations and count segment labels
     obj_list = []
+    chorus = []
+    verse = []
+    intro = []
+    segments = []
 
     for annotation in data['annotations']:
-
-        chorus = []
-        verse = []
-        intro = []
-        segments = []
 
         for segment in annotation['data']:
             if segment['value'] == "chorus":
@@ -93,45 +92,48 @@ def get_bbox(anno_path):
             elif segment['value'] == "intro":
                 intro.append([segment['time'], segment["duration"]])
 
-        segments.append(chorus)
-        segments.append(verse)
-        segments.append(intro)
+        if chorus or verse or intro:
+            segments.append(chorus)
+            segments.append(verse)
+            segments.append(intro)
 
-        colors = ['r', 'g', 'b']
-        c = 0
-        scale = (44100 / 8192) / 2
-        for seglabels in segments:
-            segcombos = itertools.product(seglabels, repeat=2)
+            colors = ['r', 'g', 'b']
+            c = 0
+            scale = (44100 / 8192) / 2
+            for seglabels in segments:
+                segcombos = itertools.product(seglabels, repeat=2)
 
-            # get the segment combination bounding boxes
-            for combo in segcombos:
-                rect = patches.Rectangle((combo[0][0] * scale, combo[1][0] * scale), combo[0][1] * scale,
-                                         combo[1][1] * scale, linewidth=1, edgecolor=colors[c], facecolor='none')
-                bound = rect.get_bbox()
+                # get the segment combination bounding boxes
+                for combo in segcombos:
+                    rect = patches.Rectangle((combo[0][0] * scale, combo[1][0] * scale), combo[0][1] * scale,
+                                             combo[1][1] * scale, linewidth=1, edgecolor=colors[c], facecolor='none')
+                    bound = rect.get_bbox()
 
-                xcount = int(round((bound.x1 - bound.x0) / 0.5))
-                ycount = int(round((bound.y1 - bound.y0) / 0.5))
-                px = np.linspace(bound.x0, bound.x1, xcount)
-                py = np.linspace(bound.y0, bound.y1, ycount)
+                    xcount = int(round((bound.x1 - bound.x0) / 0.5))
+                    ycount = int(round((bound.y1 - bound.y0) / 0.5))
+                    px = np.linspace(bound.x0, bound.x1, xcount)
+                    py = np.linspace(bound.y0, bound.y1, ycount)
 
-                poly1 = [(bound.x0, y) for y in py]
-                poly2 = [(bound.x1, y) for y in py]
-                poly3 = [(x, bound.y0) for x in px]
-                poly4 = [(x, bound.y1) for x in px]
+                    poly1 = [(bound.x0, y) for y in py]
+                    poly2 = [(bound.x1, y) for y in py]
+                    poly3 = [(x, bound.y0) for x in px]
+                    poly4 = [(x, bound.y1) for x in px]
 
-                newpoly = np.concatenate((poly1, poly2, poly3, poly4))
-                newpoly = np.array(list(np.hstack(newpoly)))
-                newpoly = (np.transpose(newpoly.reshape((np.shape(newpoly)[0], 1)))).tolist()
+                    newpoly = np.concatenate((poly1, poly2, poly3, poly4))
+                    newpoly = np.array(list(np.hstack(newpoly)))
+                    newpoly = (np.transpose(newpoly.reshape((np.shape(newpoly)[0], 1)))).tolist()
 
-                obj = {
-                    "bbox": [bound.x0, bound.y0, bound.x1, bound.y1],
-                    "bbox_mode": BoxMode.XYXY_ABS,
-                    "segmentation": newpoly,
-                    "category_id": c,
-                }
-                obj_list.append(obj)
+                    obj = {
+                        "bbox": [bound.x0, bound.y0, bound.x1, bound.y1],
+                        "bbox_mode": BoxMode.XYXY_ABS,
+                        "segmentation": newpoly,
+                        "category_id": c,
+                    }
+                    obj_list.append(obj)
 
-            c = c + 1
+                c = c + 1
+            break
+
     return obj_list
 
 
@@ -148,10 +150,11 @@ def get_audio_dicts(ds_dir):
         if os.path.exists(anno):
             record = {}
 
-            img = ds_dir + "/images/" + file.split(".")[0] + '.png'
+            img = ds_dir + "images/" + file.split(".")[0] + '.png'
             if os.path.exists(img):
                 record["file_name"] = img
             else:
+                print("new img...")
                 mfcc, chroma, melspec = get_3ssm(audio + '/' + file.split(".")[0] + '.wav')
                 ssm_to_png(mfcc, chroma, melspec, img)
 
@@ -165,7 +168,11 @@ def get_audio_dicts(ds_dir):
             record["width"] = dimensions[1]
 
             objs = get_bbox(anno)
+            if objs == []:
+                continue
             record["annotations"] = objs
 
+        else:
+            continue
         dataset_annos.append(record)
     return dataset_annos
