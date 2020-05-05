@@ -7,7 +7,6 @@ setup_logger()
 import numpy as np
 import cv2
 import random
-import colabtools
 
 # import some common detectron2 utilities
 from detectron2 import model_zoo
